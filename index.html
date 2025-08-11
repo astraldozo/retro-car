@@ -2,8 +2,10 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Retro Top-Down Car Game — Mobile Friendly</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>
+      Retro Top-Down Car Game — Final (5 lanes, spawn cooldown, buff 300m)
+    </title>
     <style>
       :root {
         --game-aspect: 2/3; /* 400 / 600 */
@@ -20,10 +22,9 @@
         justify-content: center;
       }
       .wrap {
-        width: 90vw;
-        height: calc(90vw / var(--game-aspect));
-        max-height: 90vh;
-        max-width: calc(90vh * var(--game-aspect));
+        height: 90vh; /* utama mengikuti tinggi layar */
+        width: calc(90vh * (400 / 600)); /* lebar mengikuti rasio asli */
+        max-width: 100vw; /* jangan lebih lebar dari layar */
         background: #222;
         border: 12px solid #000;
         box-shadow: 0 6px 30px rgba(0, 0, 0, 0.8);
