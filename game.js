@@ -136,7 +136,6 @@ const passiveChoices = [
     },
   },
 ];
-
 let permanentShield = { count: 0 };
 let passiveFuelMultiplier = 1.0;
 let fuelPickupMultiplier = 1.0;
@@ -257,7 +256,7 @@ function spawnBuffPickup() {
     y: -h,
     w,
     h,
-    speed: 1.9,
+    speed: 2,
     buffId: buff.id,
     icon: buff.icon,
     dur: buff.dur,
@@ -469,9 +468,10 @@ function update(dt) {
         enemies.splice(collidedIdxs[0], 1);
         lastShieldConsumedTime = now;
       } else {
-        gameOver = true;
-        running = false;
-        showMessage("GAME OVER");
+        // gameOver = true;
+        // running = false;
+        // showMessage("GAME OVER");
+        showGameOver();
       }
     }
   }
@@ -667,6 +667,38 @@ window.addEventListener("click", () => {
   }
   startGame();
 });
+
+
+const restartBtn = document.getElementById('restartBtn');
+
+function showGameOver() {
+  gameOver = true;
+  running = false;
+  document.getElementById('message').textContent = 'GAME OVER';
+  restartBtn.style.display = 'block';
+
+  
+}
+
+restartBtn.addEventListener('click', restartGame);
+
+function restartGame() {
+  enemies = [];
+  fuels = [];
+  buffsOnRoad = [];
+  fuel = 100;
+  score = 0;
+  distance = 0;
+  gameOver = false;
+  running = true;
+  spawnTimer = 0;
+  fuelTimer = 0;
+  lastBuffDistance = 0;
+  document.getElementById('message').textContent = '';
+  restartBtn.style.display = 'none';
+  player.x = (W - 36) / 2;
+}
+
 
 // show passive choices at initial load
 showPassiveChoices();
