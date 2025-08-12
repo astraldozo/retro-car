@@ -686,6 +686,7 @@ function restartGame() {
   enemies = [];
   fuels = [];
   buffsOnRoad = [];
+  activeBuffs = [];
   fuel = 100;
   score = 0;
   distance = 0;
