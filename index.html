@@ -276,8 +276,8 @@
         MAX_PER_LANE = 3,
         MAX_ENEMIES = 15,
         MIN_SPAWN_GAP = 70,
-        LANE_SPAWN_INTERVAL = 1200,
-        GLOBAL_SPAWN_INTERVAL = 700;
+        LANE_SPAWN_INTERVAL = 4000,
+        GLOBAL_SPAWN_INTERVAL = 800;
       let laneSpawnCooldown = new Array(LANES).fill(0),
         globalSpawnCooldown = 0;
 
@@ -461,7 +461,7 @@
         const x = Math.round(
           ROAD_LEFT + LANE_WIDTH * lane + (LANE_WIDTH - 36) / 2
         );
-        const baseSpeed = rand(1.0, 2.2);
+        const baseSpeed = rand(1.5, 2.2);
         enemies.push({
           x,
           y: -56,
