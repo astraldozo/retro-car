@@ -3,12 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>
-      Retro Top-Down Car Game — Final (5 lanes, spawn cooldown, buff 300m)
-    </title>
+    <title>Retro Top-Down Car Game — Final (passive + pickups + scoring)</title>
     <style>
       :root {
-        --game-aspect: 2/3; /* 400 / 600 */
+        --w: 400px;
+        --h: 600px;
       }
       html,
       body {
@@ -22,9 +21,9 @@
         justify-content: center;
       }
       .wrap {
-        height: 90vh; /* utama mengikuti tinggi layar */
-        width: calc(90vh * (400 / 600)); /* lebar mengikuti rasio asli */
-        max-width: 100vw; /* jangan lebih lebar dari layar */
+        height: 90vh;
+        width: calc(90vh * (400 / 600));
+        max-width: 100vw;
         background: #222;
         border: 12px solid #000;
         box-shadow: 0 6px 30px rgba(0, 0, 0, 0.8);
@@ -42,12 +41,6 @@
         left: 3%;
         top: 3%;
         font-size: clamp(10px, 2vw, 14px);
-      }
-      .ui .fuel {
-        margin-bottom: 6px;
-      }
-      .ui .text {
-        color: #fff;
       }
       #fuelBar {
         width: clamp(120px, 50%, 200px);
@@ -87,7 +80,7 @@
         justify-content: center;
         pointer-events: auto;
         background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6));
-        z-index: 10;
+        z-index: 20;
       }
       .buff-board {
         display: flex;
@@ -95,20 +88,19 @@
         align-items: center;
       }
       .card {
-        width: 110px;
-        height: 150px;
+        width: 140px;
+        height: 160px;
         background: #111;
         border: 2px solid #666;
         border-radius: 8px;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.8);
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        transform: scale(0.8);
+        transform: scale(0.85);
         opacity: 0;
-        transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.2, 1),
-          opacity 0.28s;
+        transition: transform 0.28s, opacity 0.28s;
         cursor: pointer;
       }
       .card.show {
@@ -121,7 +113,7 @@
         text-align: center;
       }
       .card .desc {
-        font-size: 11px;
+        font-size: 12px;
         color: #ccc;
         padding: 6px;
         text-align: center;
@@ -132,15 +124,12 @@
       @keyframes pickZoom {
         0% {
           transform: scale(1);
-          filter: contrast(1);
         }
         40% {
-          transform: scale(1.25);
-          filter: contrast(1.2);
+          transform: scale(1.2);
         }
         60% {
-          transform: scale(1.1);
-          filter: contrast(0.9);
+          transform: scale(1.05);
         }
         100% {
           transform: scale(0);
@@ -164,7 +153,7 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        width: 150px;
+        width: 170px;
       }
       .buff-icon {
         width: 28px;
@@ -180,6 +169,18 @@
         flex: 1;
         font-size: 12px;
       }
+      .score-breakdown {
+        position: absolute;
+        left: 3%;
+        top: 18%;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 6px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      .pickup-icon {
+        font-size: 14px;
+      }
       .small {
         font-size: 12px;
         color: #ccc;
@@ -193,14 +194,19 @@
       <div class="ui">
         <div class="fuel">
           <span class="text">Bensin</span>
-          <div id="fuelBar">
-            <div id="fuelFill"></div>
-          </div>
+          <div id="fuelBar"><div id="fuelFill"></div></div>
         </div>
         <div style="margin-top: 6px">
           <span class="text">Skor: </span><span id="score">0</span>
           <span class="small"> | Jarak: </span><span id="distance">0</span>m
         </div>
+      </div>
+
+      <div class="score-breakdown" id="scoreBreak">
+        <div>Distance: <span id="score_dist">0</span></div>
+        <div>Fuel used: <span id="score_fuelused">0</span></div>
+        <div>Fuel pickups: <span id="score_fuelpick">0</span></div>
+        <div>Buff pickups: <span id="score_buffpick">0</span></div>
       </div>
 
       <div class="active-buffs" id="activeBuffsUI"></div>
@@ -215,9 +221,10 @@
           "
         ></div>
       </div>
+
       <div class="hint">
         Gunakan ← → atau sentuh kiri/kanan untuk pindah. Ambil kotak kuning
-        untuk mengisi bensin.
+        untuk mengisi bensin. Ambil ikon buff untuk dapat efek sementara.
       </div>
 
       <div id="buffOverlay" class="buff-overlay">
@@ -226,14 +233,14 @@
     </div>
 
     <script>
-      /* Minimal comments kept (≤5) */
+      /* <=5 comments total */
 
-      const canvas = document.getElementById("game");
-      const ctx = canvas.getContext("2d");
+      const canvas = document.getElementById("game"),
+        ctx = canvas.getContext("2d");
       const W = canvas.width,
         H = canvas.height;
 
-      // player + world
+      // player/world
       const player = {
         baseW: 36,
         baseH: 56,
@@ -246,116 +253,129 @@
       };
       let enemies = [],
         fuels = [],
+        buffsOnRoad = [],
         keys = {};
       let fuel = 100,
-        score = 0,
+        scoreTotal = 0,
         distance = 0;
-      let running = true,
+      let running = false,
         gameOver = false,
         spawnTimer = 0,
         fuelTimer = 0,
+        buffSpawnTimer = 0,
         roadOffset = 0;
 
-      function rand(a, b) {
-        return Math.random() * (b - a) + a;
-      }
+      // lanes & spawn config
+      const LANE_COUNT = 5,
+        ROAD_LEFT = 40,
+        ROAD_WIDTH = W - 80,
+        LANE_WIDTH = ROAD_WIDTH / LANE_COUNT;
+      const PLAYER_MIN_X = ROAD_LEFT + 6,
+        PLAYER_MAX_X = ROAD_LEFT + ROAD_WIDTH - player.w - 6;
+      const LANES = 5,
+        MAX_PER_LANE = 3,
+        MAX_ENEMIES = 15,
+        MIN_SPAWN_GAP = 70,
+        LANE_SPAWN_INTERVAL = 1200,
+        GLOBAL_SPAWN_INTERVAL = 700;
+      let laneSpawnCooldown = new Array(LANES).fill(0),
+        globalSpawnCooldown = 0;
 
-      // lanes + road bounds
-      const LANE_COUNT = 5;
-      const ROAD_LEFT = 40;
-      const ROAD_WIDTH = W - 80;
-      const LANE_WIDTH = ROAD_WIDTH / LANE_COUNT;
-      const PLAYER_MIN_X = ROAD_LEFT + 6; // left bound for player
-      const PLAYER_MAX_X = ROAD_LEFT + ROAD_WIDTH - player.w - 6; // right bound
-      const MAX_PER_LANE = 4;
-      const MIN_SPAWN_GAP = 80; // px
-      const PER_LANE_COOLDOWN_MS = 1800; // ms
-      const BUFF_DISTANCE = 300; // every 300m now
-      const MAX_ENEMIES = 8;
+      // scoring components
+      let score_distance = 0,
+        score_fuelused = 0,
+        score_fuelpick = 0,
+        score_buffpick = 0;
+      let fuelUsed = 0,
+        fuelPickupsCollected = 0,
+        buffPickupsCollected = 0;
 
-      let laneCooldowns = new Array(LANE_COUNT).fill(0);
+      // passive skill (chosen once at start)
+      let passive = null; // example: {id:'speed_boost', label:'+10% speed', apply:fn}
 
-      // buff system
+      // buff definitions (temporary)
       const allBuffs = [
         {
           id: "nitro",
           name: "Nitro",
-          desc: "+50% speed",
+          desc: "+50% speed (5s)",
           dur: 5000,
           icon: "⚡",
         },
         {
           id: "fuel_saver",
           name: "Fuel Saver",
-          desc: "-50% fuel use",
-          dur: 15000,
+          desc: "-50% fuel use (12s)",
+          dur: 12000,
           icon: "⛽",
         },
         {
           id: "ghost",
           name: "Ghost",
-          desc: "Ignore collisions",
+          desc: "Ignore collisions (5s)",
           dur: 5000,
           icon: "👻",
         },
         {
           id: "double_fuel",
           name: "Double Fuel",
-          desc: "Fuel pickups x2",
+          desc: "Fuel pickups x2 (12s)",
           dur: 12000,
           icon: "🔋",
         },
         {
-          id: "magnet",
-          name: "Magnet",
-          desc: "Attract fuel",
-          dur: 10000,
-          icon: "🧲",
-        },
-        {
-          id: "slowmo",
-          name: "Slow",
-          desc: "Slow enemies",
-          dur: 5000,
-          icon: "🐢",
-        },
-        {
           id: "shield",
           name: "Shield",
-          desc: "Block 1 hit",
+          desc: "Block 1 hit (one-time)",
           dur: 0,
           icon: "🛡️",
         },
-        {
-          id: "score2x",
-          name: "2x Score",
-          desc: "Double points",
-          dur: 10000,
-          icon: "⭐",
-        },
-        {
-          id: "fuel_regen",
-          name: "Regen",
-          desc: "Gradual fuel",
-          dur: 8000,
-          icon: "🌱",
-        },
-        {
-          id: "shrink",
-          name: "Shrink",
-          desc: "Smaller hitbox",
-          dur: 8000,
-          icon: "🔍",
-        },
       ];
       let activeBuffs = [];
-      let lastBuffDistance = 0;
-      let buffOverlay = document.getElementById("buffOverlay");
-      let buffBoard = document.getElementById("buffBoard");
-      let activeBuffsUI = document.getElementById("activeBuffsUI");
 
-      let lastShieldConsumedTime = -Infinity;
-      const SHIELD_COOLDOWN_MS = 350;
+      // passive choices
+      const passiveChoices = [
+        {
+          id: "speed_boost",
+          name: "+10% Speed",
+          apply: () => {
+            player.speed *= 1.1;
+          },
+        },
+        {
+          id: "fuel_efficient",
+          name: "-20% Fuel Use",
+          apply: () => {
+            passiveFuelMultiplier *= 0.8;
+          },
+        },
+        {
+          id: "start_shield",
+          name: "Start Shield",
+          apply: () => {
+            permanentShield.count = Math.max(permanentShield.count || 0, 1);
+          },
+        },
+        {
+          id: "extra_fuel_value",
+          name: "+20% Fuel Pickup",
+          apply: () => {
+            fuelPickupMultiplier *= 1.2;
+          },
+        },
+        {
+          id: "distance_bonus",
+          name: "+10% Distance Score",
+          apply: () => {
+            distanceScoreMultiplier *= 1.1;
+          },
+        },
+      ];
+
+      let permanentShield = { count: 0 };
+      let passiveFuelMultiplier = 1.0;
+      let fuelPickupMultiplier = 1.0;
+      let distanceScoreMultiplier = 1.0;
 
       // input
       window.addEventListener("keydown", (e) => (keys[e.key] = true));
@@ -370,12 +390,12 @@
         const x = (t.clientX - rect.left) * (canvas.width / rect.width);
         keys["touch"] = x < W / 2 ? "left" : "right";
       }
-      canvas.addEventListener("touchend", () => {
-        keys["touch"] = false;
-      });
-      buffOverlay.addEventListener("click", (e) => e.stopPropagation());
+      canvas.addEventListener("touchend", () => (keys["touch"] = false));
 
-      // collision helper
+      // helpers
+      function rand(a, b) {
+        return Math.random() * (b - a) + a;
+      }
       function rectColl(a, b) {
         return (
           a.x < b.x + b.w &&
@@ -385,72 +405,77 @@
         );
       }
 
-      // spawn enemy: per-lane cooldown + per-lane capacity + global cap
+      // initial passive selection overlay
+      const buffOverlay = document.getElementById("buffOverlay");
+      const buffBoard = document.getElementById("buffBoard");
+      function showPassiveChoices() {
+        buffBoard.innerHTML = "";
+        const choices = passiveChoices.slice(0, 3); // show 3 random choices
+        // shuffle then pick 3
+        for (let i = 0; i < 3; i++) {
+          const idx = Math.floor(rand(0, passiveChoices.length));
+          const p = passiveChoices.splice(idx, 1)[0];
+          const c = document.createElement("div");
+          c.className = "card";
+          c.innerHTML = `<div class="name">${p.name}</div><div class="desc">Passive effect. Permanen sampai akhir run.</div>`;
+          c.addEventListener("click", () => {
+            pickPassive(c, p);
+          });
+          buffBoard.appendChild(c);
+          setTimeout(() => c.classList.add("show"), 80 * i);
+        }
+        buffOverlay.style.display = "flex";
+        buffOverlay.dataset.mode = "passive";
+        running = false;
+      }
+      function pickPassive(cardEl, p) {
+        cardEl.classList.add("picked");
+        setTimeout(() => {
+          passive = p;
+          // apply passive effect
+          if (passive && passive.apply) passive.apply();
+          buffOverlay.style.display = "none";
+          running = true;
+        }, 300);
+      }
+
+      // spawn enemy with improved logic
       function spawnEnemy() {
         if (enemies.length >= MAX_ENEMIES) return;
-        const now = Date.now();
-        const w = 36,
-          h = 56,
-          spawnY = -h;
-        const lanes = [];
+        if (performance.now() < globalSpawnCooldown) return;
 
-        for (let lane = 0; lane < LANE_COUNT; lane++) {
-          const laneEnemies = enemies.filter((e) => e.lane === lane);
-          const count = laneEnemies.length;
-          const nearestY = count
-            ? Math.max(...laneEnemies.map((e) => e.y))
-            : -Infinity;
-          lanes.push({ lane, count, nearestY });
-        }
-        // prefer less occupied lanes
-        lanes.sort((a, b) => a.count - b.count);
-
-        let chosen = null;
-        for (const info of lanes) {
-          if (info.count >= MAX_PER_LANE) continue;
-          const cd = laneCooldowns[info.lane];
-          if (now - cd < PER_LANE_COOLDOWN_MS) continue; // cooldown
-          if (info.count === 0) {
-            chosen = info.lane;
-            break;
+        let available = [];
+        for (let i = 0; i < LANES; i++) {
+          const laneEnemies = enemies.filter((e) => e.lane === i);
+          if (laneEnemies.length >= MAX_PER_LANE) continue;
+          if (performance.now() < laneSpawnCooldown[i]) continue;
+          if (!laneEnemies.length) {
+            available.push(i);
+            continue;
           }
-          const gap = info.nearestY - spawnY;
-          if (gap >= MIN_SPAWN_GAP) {
-            chosen = info.lane;
-            break;
-          }
+          const last = laneEnemies.reduce((a, b) => (a.y > b.y ? a : b));
+          if (last.y > MIN_SPAWN_GAP) available.push(i);
         }
-        if (chosen === null) {
-          // try any lane with cooldown expired
-          for (const info of lanes) {
-            if (
-              info.count < MAX_PER_LANE &&
-              now - laneCooldowns[info.lane] >= PER_LANE_COOLDOWN_MS
-            ) {
-              chosen = info.lane;
-              break;
-            }
-          }
-        }
-        if (chosen === null) return; // skip this spawn
-
+        if (available.length === 0) return;
+        const lane = available[Math.floor(Math.random() * available.length)];
         const x = Math.round(
-          ROAD_LEFT + LANE_WIDTH * chosen + (LANE_WIDTH - w) / 2
+          ROAD_LEFT + LANE_WIDTH * lane + (LANE_WIDTH - 36) / 2
         );
         const baseSpeed = rand(1.0, 2.2);
         enemies.push({
           x,
-          y: spawnY,
-          w,
-          h,
+          y: -56,
+          w: 36,
+          h: 56,
           baseSpeed,
           speed: baseSpeed,
-          lane: chosen,
+          lane,
         });
-        laneCooldowns[chosen] = now;
+        laneSpawnCooldown[lane] = performance.now() + LANE_SPAWN_INTERVAL;
+        globalSpawnCooldown = performance.now() + GLOBAL_SPAWN_INTERVAL;
       }
 
-      // spawn fuel with small cap
+      // spawn fuel and buff pickups
       function spawnFuel() {
         if (fuels.length >= 6) return;
         const w = 30,
@@ -461,148 +486,131 @@
         );
         fuels.push({ x, y: -h, w, h, speed: 2.2 });
       }
+      function spawnBuffPickup() {
+        if (buffsOnRoad.length >= 3) return;
+        const idx = Math.floor(rand(0, allBuffs.length));
+        const buff = allBuffs[idx];
+        const w = 28,
+          h = 28;
+        const lane = Math.floor(rand(0, LANE_COUNT));
+        const x = Math.round(
+          ROAD_LEFT + LANE_WIDTH * lane + (LANE_WIDTH - w) / 2
+        );
+        buffsOnRoad.push({
+          x,
+          y: -h,
+          w,
+          h,
+          speed: 1.9,
+          buffId: buff.id,
+          icon: buff.icon,
+          dur: buff.dur,
+        });
+      }
 
-      // buff handling
-      function activateBuff(buff) {
-        const now = performance.now();
-        const entry = {
-          id: buff.id,
-          expires: buff.dur > 0 ? now + buff.dur : null,
-          buff,
-          data: {},
-        };
-        if (buff.id === "shield") entry.data.count = 1;
-        if (buff.id === "shrink") {
-          player.w = Math.round(player.baseW * 0.8);
-          player.h = Math.round(player.baseH * 0.8);
-        }
-        activeBuffs.push(entry);
-      }
-      function removeBuffIndex(idx) {
-        const b = activeBuffs[idx];
+      // activate temporary buff from pickup
+      function activateTempBuffById(id) {
+        const b = allBuffs.find((x) => x.id === id);
         if (!b) return;
-        if (b.id === "shrink") {
-          player.w = player.baseW;
-          player.h = player.baseH;
+        const now = performance.now();
+        if (b.id === "shield") {
+          // shield as one-time or stack
+          activeBuffs.push({
+            id: "shield_temp",
+            expires: null,
+            buff: b,
+            data: { count: 1 },
+          });
+          return;
         }
-        activeBuffs.splice(idx, 1);
+        activeBuffs.push({ id: b.id, expires: now + b.dur, buff: b, data: {} });
       }
+
+      // buff housekeeping
       function applyBuffHousekeeping() {
         const now = performance.now();
         for (let i = activeBuffs.length - 1; i >= 0; i--) {
           const b = activeBuffs[i];
-          if (b.expires && b.expires <= now) removeBuffIndex(i);
+          if (b.expires && b.expires <= now) {
+            if (b.id === "shrink") {
+              player.w = player.baseW;
+              player.h = player.baseH;
+            }
+            activeBuffs.splice(i, 1);
+          }
         }
       }
       function isBuffActive(id) {
-        return activeBuffs.some((b) => b.id === id);
+        return (
+          activeBuffs.some((b) => b.id === id) ||
+          (id === "shield" && permanentShield.count > 0)
+        );
       }
 
-      function showBuffChoices() {
-        const pool = [...allBuffs],
-          pick = [];
-        for (let i = 0; i < 3; i++) {
-          const idx = Math.floor(rand(0, pool.length));
-          pick.push(pool.splice(idx, 1)[0]);
-        }
-        buffBoard.innerHTML = "";
-        pick.forEach((b, i) => {
-          const c = document.createElement("div");
-          c.className = "card";
-          c.innerHTML = `<div class='name'>${b.name}</div><div class='desc'>${b.desc}</div>`;
-          c.addEventListener("click", (e) => {
-            e.stopPropagation();
-            pickCard(c, b);
-          });
-          buffBoard.appendChild(c);
-          setTimeout(() => c.classList.add("show"), 80 * i);
-        });
-        buffOverlay.style.display = "flex";
-        running = false;
+      // scoring helpers
+      function recomputeScore() {
+        score_distance = Math.floor(distance * distanceScoreMultiplier);
+        score_fuelused = Math.floor(fuelUsed); // 1 point per fuel unit used
+        score_fuelpick = fuelPickupsCollected * 50;
+        score_buffpick = buffPickupsCollected * 150;
+        scoreTotal =
+          score_distance + score_fuelused + score_fuelpick + score_buffpick;
+        document.getElementById("score").innerText = Math.floor(scoreTotal);
+        document.getElementById("score_dist").innerText = score_distance;
+        document.getElementById("score_fuelused").innerText = score_fuelused;
+        document.getElementById("score_fuelpick").innerText = score_fuelpick;
+        document.getElementById("score_buffpick").innerText = score_buffpick;
       }
-      function pickCard(cardEl, buff) {
-        cardEl.classList.add("picked");
-        cardEl.style.animationTimingFunction = "steps(4,end)";
-        buffBoard.style.animation = "retroFlicker .28s linear";
-        setTimeout(() => {
-          buffOverlay.style.display = "none";
-          buffBoard.style.animation = "";
-          activateBuff(buff);
-          running = true;
-          updateActiveBuffsUI();
-        }, 360);
+
+      // activate temporary buff effects per-frame (some are handled in checks)
+      function getBuffMultiplier(id) {
+        if (id === "nitro") return 1.5;
+        return 1;
       }
+
+      // update active buffs UI
       function updateActiveBuffsUI() {
-        activeBuffsUI.innerHTML = "";
+        const container = document.getElementById("activeBuffsUI");
+        container.innerHTML = "";
         const now = performance.now();
+        // permanent shield show
+        if (permanentShield.count > 0) {
+          const el = document.createElement("div");
+          el.className = "buff-slot";
+          el.innerHTML = `<div class="buff-icon">🛡️</div><div class="buff-info"><div style="font-weight:700">Shield</div><div style="font-size:11px">perm</div></div>`;
+          container.appendChild(el);
+        }
         activeBuffs.forEach((b) => {
           const el = document.createElement("div");
           el.className = "buff-slot";
-          const icon = document.createElement("div");
-          icon.className = "buff-icon";
-          icon.textContent = b.buff.icon || "?";
-          const info = document.createElement("div");
-          info.className = "buff-info";
-          const name = document.createElement("div");
-          name.textContent = b.buff.name;
-          name.style.fontWeight = "700";
-          const time = document.createElement("div");
-          time.style.fontSize = "11px";
-          time.style.opacity = "0.9";
           const remaining = b.expires
             ? Math.max(0, Math.ceil((b.expires - now) / 1000)) + "s"
             : b.data.count
             ? "x" + b.data.count
             : "";
-          time.textContent = remaining;
-          info.appendChild(name);
-          info.appendChild(time);
-          el.appendChild(icon);
-          el.appendChild(info);
-          activeBuffsUI.appendChild(el);
+          el.innerHTML = `<div class="buff-icon">${
+            b.buff.icon || "?"
+          }</div><div class="buff-info"><div style="font-weight:700">${
+            b.buff.name
+          }</div><div style="font-size:11px">${remaining}</div></div>`;
+          container.appendChild(el);
         });
       }
 
-      // visuals
-      function drawShield(x, y, w, h, t) {
-        const cx = x + w / 2,
-          cy = y + h / 2,
-          r = Math.max(w, h) * 0.9 + Math.sin(t / 200) * 4;
-        ctx.save();
-        ctx.globalAlpha = 0.22;
-        ctx.strokeStyle = "#7fd1ff";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-      function drawGhostTint() {
-        ctx.globalAlpha = 0.45;
-      }
-      function drawMotionTrail(x, y, w, h, t) {
-        ctx.save();
-        ctx.globalAlpha = 0.18;
-        for (let i = 1; i <= 3; i++) {
-          ctx.fillRect(x - i * 6, y + i * 6, w, h - 10);
-        }
-        ctx.restore();
-      }
-      function drawStars(x, y, w, h, t) {
-        ctx.save();
-        ctx.globalAlpha = 0.9;
-        const cx = x + w / 2,
-          top = y - 12 - Math.abs(Math.sin(t / 150)) * 6;
-        ctx.fillStyle = "#ffd700";
-        ctx.fillRect(cx - 2, top, 4, 4);
-        ctx.fillRect(cx + 8, top + 2, 3, 3);
-        ctx.restore();
+      // main update + draw
+      let last = performance.now();
+      function frame(now) {
+        const dt = Math.max(8, now - last);
+        last = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(frame);
       }
 
       function update(dt) {
         if (!running || gameOver) return;
 
-        // player input + clamp to road
+        // input + clamp
         const moveSpeed = player.speed * (isBuffActive("nitro") ? 1.5 : 1);
         if (
           keys["ArrowLeft"] ||
@@ -621,14 +629,17 @@
         if (player.x < PLAYER_MIN_X) player.x = PLAYER_MIN_X;
         if (player.x > PLAYER_MAX_X) player.x = PLAYER_MAX_X;
 
-        // distance & fuel
+        // distance
         const forwardSpeed = 2.4;
         distance += forwardSpeed * dt * 0.01;
         document.getElementById("distance").innerText = Math.floor(distance);
-        let consumption = 0.02;
+
+        // fuel consumption (2x faster; passive modifies it too)
+        let consumption = 0.02 * 2 * passiveFuelMultiplier; // doubled
         if (isBuffActive("fuel_saver")) consumption *= 0.5;
         if (isBuffActive("nitro")) consumption *= 1.12;
         fuel -= consumption;
+        fuelUsed += Math.max(0, consumption * (dt / 16)); // approximate units consumed
         if (isBuffActive("fuel_regen"))
           fuel = Math.min(100, fuel + (0.02 * dt) / 16);
         if (fuel <= 0) {
@@ -637,11 +648,10 @@
           showMessage("KEHABISAN BENSIN");
         }
 
-        // spawns
+        // spawns (enemies, fuel, buff pickups)
         spawnTimer += dt;
         const baseInterval = 700 - Math.min(distance, 400);
-        const spawnInterval = baseInterval * 1.3;
-        if (spawnTimer > spawnInterval) {
+        if (spawnTimer > baseInterval * 1.3) {
           spawnTimer = 0;
           spawnEnemy();
         }
@@ -650,19 +660,25 @@
           fuelTimer = 0;
           spawnFuel();
         }
+        buffSpawnTimer += dt;
+        if (buffSpawnTimer > 6500) {
+          buffSpawnTimer = 0;
+          spawnBuffPickup();
+        }
 
-        // move enemies and anti-collision (per-lane), then limit overlap
+        // move enemies
         for (const e of enemies)
           e.y += e.speed * (isBuffActive("slowmo") ? 0.5 : 1);
 
+        // per-lane anti-collision speed follow
         const SAFE_DISTANCE = 36;
         for (let lane = 0; lane < LANE_COUNT; lane++) {
           const laneEnemies = enemies
             .filter((e) => e.lane === lane)
             .sort((a, b) => b.y - a.y);
           for (let i = 0; i < laneEnemies.length - 1; i++) {
-            const front = laneEnemies[i];
-            const back = laneEnemies[i + 1];
+            const front = laneEnemies[i],
+              back = laneEnemies[i + 1];
             const gap = front.y - (back.y + back.h);
             if (gap < SAFE_DISTANCE) {
               const target = Math.min(front.speed, back.baseSpeed);
@@ -674,24 +690,15 @@
             }
           }
         }
-
         enemies = enemies.filter((e) => e.y < H + 120);
 
-        // fuels & magnet
-        for (let f of fuels) {
-          if (isBuffActive("magnet")) {
-            const dx = player.x + player.w / 2 - (f.x + f.w / 2);
-            const dy = player.y + player.h / 2 - (f.y + f.h / 2);
-            const dist = Math.hypot(dx, dy);
-            if (dist < 160) {
-              f.x += (dx / dist) * 2.5;
-              f.y += (dy / dist) * 2.5;
-            } else f.y += f.speed;
-          } else f.y += f.speed;
-        }
+        // move fuels & buffs
+        for (const f of fuels) f.y += f.speed;
+        for (const b of buffsOnRoad) b.y += b.speed;
         fuels = fuels.filter((f) => f.y < H + 60);
+        buffsOnRoad = buffsOnRoad.filter((b) => b.y < H + 60);
 
-        // collisions
+        // collisions: enemy
         const now = performance.now();
         const collidedIdxs = [];
         for (let i = 0; i < enemies.length; i++) {
@@ -706,16 +713,21 @@
         if (collidedIdxs.length > 0) {
           if (isBuffActive("ghost")) {
             // ignore
+          } else if (permanentShield.count > 0) {
+            permanentShield.count--;
+            enemies.splice(collidedIdxs[0], 1);
           } else {
-            const shieldIdx = activeBuffs.findIndex((b) => b.id === "shield");
+            const shieldIdx = activeBuffs.findIndex(
+              (b) => b.id === "shield_temp"
+            );
             if (
               shieldIdx >= 0 &&
               activeBuffs[shieldIdx].data.count > 0 &&
-              now - lastShieldConsumedTime > SHIELD_COOLDOWN_MS
+              now - lastShieldConsumedTime > 350
             ) {
               activeBuffs[shieldIdx].data.count--;
               if (activeBuffs[shieldIdx].data.count <= 0)
-                removeBuffIndex(shieldIdx);
+                activeBuffs.splice(shieldIdx, 1);
               enemies.splice(collidedIdxs[0], 1);
               lastShieldConsumedTime = now;
             } else {
@@ -726,33 +738,41 @@
           }
         }
 
-        // fuel pickups
+        // fuel pickups collision
         for (let i = fuels.length - 1; i >= 0; i--) {
           if (rectColl(player, fuels[i])) {
-            const amount = isBuffActive("double_fuel") ? 60 : 30;
+            const amount = Math.floor(
+              (isBuffActive("double_fuel") ? 60 : 30) * fuelPickupMultiplier
+            );
             fuel = Math.min(100, fuel + amount);
             fuels.splice(i, 1);
+            fuelPickupsCollected++;
           }
         }
 
-        score += dt * 0.01 * (isBuffActive("score2x") ? 2 : 1);
-        applyBuffHousekeeping();
-        updateActiveBuffsUI();
-
-        if (distance - lastBuffDistance >= BUFF_DISTANCE) {
-          lastBuffDistance += BUFF_DISTANCE;
-          showBuffChoices();
+        // buff pickups collision
+        for (let i = buffsOnRoad.length - 1; i >= 0; i--) {
+          if (rectColl(player, buffsOnRoad[i])) {
+            const id = buffsOnRoad[i].buffId;
+            activateTempBuffById(id);
+            buffsOnRoad.splice(i, 1);
+            buffPickupsCollected++;
+          }
         }
 
+        applyBuffHousekeeping();
+        updateActiveBuffsUI();
+        recomputeScore();
         roadOffset += (200 * dt) / 1000;
         if (roadOffset > 40) roadOffset -= 40;
       }
 
+      // drawing
       function draw() {
         const t = performance.now();
         ctx.clearRect(0, 0, W, H);
 
-        // road + guide lines
+        // road
         ctx.fillStyle = "#2a2a2a";
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = "#111";
@@ -776,13 +796,15 @@
           ctx.stroke();
         }
 
+        // draw fuels
+        for (const f of fuels) drawFuelBox(f.x, f.y, f.w, f.h);
+        // draw buffs on road
+        for (const b of buffsOnRoad) drawBuffPickup(b.x, b.y, b.w, b.h, b.icon);
+
         // enemies
         for (const e of enemies) drawCar(e.x, e.y, e.w, e.h, "#3b82f6");
 
-        // fuels
-        for (const f of fuels) drawFuelBox(f.x, f.y, f.w, f.h);
-
-        // player effects
+        // player effects/trails
         ctx.save();
         if (isBuffActive("ghost")) {
           drawGhostTint();
@@ -794,16 +816,29 @@
         drawCar(player.x, player.y, player.w, player.h, player.color);
         ctx.restore();
 
-        if (isBuffActive("shield"))
+        if (isBuffActive("shield") || permanentShield.count > 0)
           drawShield(player.x, player.y, player.w, player.h, t);
-        if (isBuffActive("score2x"))
-          drawStars(player.x, player.y, player.w, player.h, t);
 
-        document.getElementById("score").innerText = Math.floor(score);
+        document.getElementById("score").innerText = Math.floor(scoreTotal);
+        document.getElementById("distance").innerText = Math.floor(distance);
         const fill = document.getElementById("fuelFill");
         fill.style.width = Math.max(0, fuel) * 2 + "px";
         fill.style.background =
           fuel > 40 ? "#39b54a" : fuel > 15 ? "#f0a500" : "#ff3b3b";
+      }
+
+      function drawShield(x, y, w, h, t) {
+        const cx = x + w / 2,
+          cy = y + h / 2,
+          r = Math.max(w, h) * 0.9 + Math.sin(t / 200) * 4;
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = "#7fd1ff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
 
       function drawCar(x, y, w, h, color) {
@@ -825,46 +860,84 @@
         ctx.fillStyle = "#b58300";
         ctx.fillRect(x + 9, y + 9, w - 18, h - 18);
       }
-
-      let last = performance.now();
-      function frame(now) {
-        const dt = Math.max(8, now - last);
-        last = now;
-        update(dt);
-        draw();
-        requestAnimationFrame(frame);
+      function drawBuffPickup(x, y, w, h, icon) {
+        ctx.fillStyle = "#114";
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = "#fff";
+        ctx.font = "16px sans-serif";
+        ctx.fillText(icon, x + w / 2 - 6, y + h / 2 + 6);
       }
+      function drawMotionTrail(x, y, w, h, t) {
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        for (let i = 1; i <= 3; i++) {
+          ctx.fillRect(x - i * 6, y + i * 6, w, h - 10);
+        }
+        ctx.restore();
+      }
+      function drawStars(x, y, w, h, t) {
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        const cx = x + w / 2,
+          top = y - 12 - Math.abs(Math.sin(t / 150)) * 6;
+        ctx.fillStyle = "#ffd700";
+        ctx.fillRect(cx - 2, top, 4, 4);
+        ctx.fillRect(cx + 8, top + 2, 3, 3);
+        ctx.restore();
+      }
+      
+      function drawGhostTint() {
+        ctx.globalAlpha = 0.45;
+      }
+      // messages & start/reset
       function showMessage(txt) {
         document.getElementById("message").textContent = txt;
       }
-      requestAnimationFrame(frame);
-
-      // restart: reset everything
+      function startGame() {
+        // reset stats but keep passive
+        enemies = [];
+        fuels = [];
+        buffsOnRoad = [];
+        fuel = 100;
+        scoreTotal = 0;
+        distance = 0;
+        spawnTimer = 0;
+        fuelTimer = 0;
+        buffSpawnTimer = 0;
+        fuelUsed = 0;
+        fuelPickupsCollected = 0;
+        buffPickupsCollected = 0;
+        score_distance = 0;
+        score_fuelused = 0;
+        score_fuelpick = 0;
+        score_buffpick = 0;
+        running = true;
+        gameOver = false;
+        last = performance.now();
+        showMessage("");
+      }
       window.addEventListener("click", () => {
         if (buffOverlay.style.display === "flex") return;
         if (!gameOver && running) return;
-        enemies = [];
-        fuels = [];
-        fuel = 100;
-        score = 0;
-        distance = 0;
-        running = true;
-        gameOver = false;
-        spawnTimer = 0;
-        fuelTimer = 0;
-        lastBuffDistance = 0;
-        activeBuffs = [];
-        laneCooldowns = new Array(LANE_COUNT).fill(0);
-        updateActiveBuffsUI();
-        lastShieldConsumedTime = -Infinity;
-        document.getElementById("message").textContent = "";
+        // if passive not chosen, show selection
+        if (!passive) {
+          showPassiveChoices();
+          return;
+        }
+        startGame();
       });
+
+      // show passive choices at initial load
+      showPassiveChoices();
+      requestAnimationFrame(frame);
+
+      // restart UI handlers
       function resizeGame() {
         const wrap = document.querySelector(".wrap");
         const rect = wrap.getBoundingClientRect();
-        const canvas = document.getElementById("game");
-        canvas.style.width = rect.width + "px";
-        canvas.style.height = rect.height + "px";
+        const c = document.getElementById("game");
+        c.style.width = rect.width + "px";
+        c.style.height = rect.height + "px";
       }
       window.addEventListener("resize", resizeGame);
       resizeGame();
