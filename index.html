@@ -223,8 +223,8 @@
       </div>
 
       <div class="hint">
-        Gunakan ← → atau sentuh kiri/kanan untuk pindah. Ambil kotak kuning
-        untuk mengisi bensin. Ambil ikon buff untuk dapat efek sementara.
+        Gunakan ← → atau sentuh kiri/kanan untuk pindah. 
+        Ambil kotak kuning untuk mengisi bensin. Ambil ikon buff untuk dapat efek sementara.
       </div>
 
       <div id="buffOverlay" class="buff-overlay">
@@ -247,7 +247,7 @@
         w: 36,
         h: 56,
         x: (W - 36) / 2,
-        y: H - 90,
+        y: H - 160,
         color: "#ff3b3b",
         speed: 4,
       };
@@ -275,7 +275,7 @@
       const LANES = 5,
         MAX_PER_LANE = 3,
         MAX_ENEMIES = 15,
-        MIN_SPAWN_GAP = 70,
+        MIN_SPAWN_GAP = 80,
         LANE_SPAWN_INTERVAL = 4000,
         GLOBAL_SPAWN_INTERVAL = 800;
       let laneSpawnCooldown = new Array(LANES).fill(0),
@@ -412,7 +412,7 @@
         buffBoard.innerHTML = "";
         const choices = passiveChoices.slice(0, 3); // show 3 random choices
         // shuffle then pick 3
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) {
           const idx = Math.floor(rand(0, passiveChoices.length));
           const p = passiveChoices.splice(idx, 1)[0];
           const c = document.createElement("div");
