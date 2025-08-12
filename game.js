@@ -665,7 +665,7 @@ window.addEventListener("click", () => {
     showPassiveChoices();
     return;
   }
-  startGame();
+//   startGame();
 });
 
 
@@ -688,13 +688,21 @@ function restartGame() {
   buffsOnRoad = [];
   activeBuffs = [];
   fuel = 100;
-  score = 0;
+  scoreTotal = 0;
   distance = 0;
-  gameOver = false;
-  running = true;
   spawnTimer = 0;
   fuelTimer = 0;
-  lastBuffDistance = 0;
+  buffSpawnTimer = 0;
+  fuelUsed = 0;
+  fuelPickupsCollected = 0;
+  buffPickupsCollected = 0;
+  score_distance = 0;
+  score_fuelused = 0;
+  score_fuelpick = 0;
+  score_buffpick = 0;
+  running = true;
+  gameOver = false;
+  last = performance.now();
   document.getElementById('message').textContent = '';
   restartBtn.style.display = 'none';
   player.x = (W - 36) / 2;
