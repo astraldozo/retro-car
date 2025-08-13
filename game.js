@@ -142,6 +142,7 @@ let passiveFuelMultiplier = 1.0;
 let fuelPickupMultiplier = 1.0;
 let distanceScoreMultiplier = 1.0;
 let lastShieldConsumedTime = -Infinity;
+let lastGlobalLaneChange = 0;
 
 // input
 window.addEventListener("keydown", (e) => (keys[e.key] = true));
@@ -231,6 +232,8 @@ function spawnEnemy() {
     baseSpeed,
     speed: baseSpeed,
     lane,
+    tilt: 0,
+    laneChanging: false,
   });
   laneSpawnCooldown[lane] = performance.now() + LANE_SPAWN_INTERVAL;
   globalSpawnCooldown = performance.now() + GLOBAL_SPAWN_INTERVAL;
@@ -429,7 +432,30 @@ function update(dt) {
   }
 
   // move enemies
-  for (const e of enemies) e.y += e.speed * (isBuffActive("slowmo") ? 0.5 : 1);
+  for (const e of enemies) {
+    // gerak vertikal
+    e.y += e.speed * (isBuffActive("slowmo") ? 0.5 : 1);
+
+    // gerak horizontal kalau lagi pindah lane
+    if (e.laneChanging) {
+      if (Math.abs(e.targetX - e.x) > 1) {
+        e.tilt = e.tiltDir < 0 ? -15 : 15; // miring saat pindah
+        e.x += Math.sign(e.targetX - e.x) * e.laneChangeSpeed;
+      } else {
+        console.log("x :" + e.x + "| tagetX :" + e.targetX);
+        e.x = e.targetX;
+        e.laneChanging = false;
+      }
+    } else {
+      if (e.tilt != 0) {
+        e.tilt += (0 - e.tilt) * 0.15; // smooth kembali
+        if (Math.abs(e.tilt) < 0.1) e.tilt = 0; // snap ke nol
+      }
+    }
+  }
+
+  // filter enemy yang sudah lewat
+  enemies = enemies.filter((e) => e.y < H + 120);
 
   // per-lane anti-collision speed follow
   const SAFE_DISTANCE = 36;
@@ -437,6 +463,7 @@ function update(dt) {
     const laneEnemies = enemies
       .filter((e) => e.lane === lane)
       .sort((a, b) => b.y - a.y);
+
     for (let i = 0; i < laneEnemies.length - 1; i++) {
       const front = laneEnemies[i],
         back = laneEnemies[i + 1];
@@ -451,7 +478,44 @@ function update(dt) {
       }
     }
   }
-  enemies = enemies.filter((e) => e.y < H + 120);
+
+  // lane change decision + cooldown
+  for (const e of enemies) {
+    if (!e.lastLaneChangeTime) e.lastLaneChangeTime = 0;
+    const nowMs = performance.now();
+
+    if (
+      nowMs - e.lastLaneChangeTime < e.laneChangeCooldown ||
+      nowMs - lastGlobalLaneChange < 3000 || // global cooldown
+      Math.random() > 0.01
+    )
+      continue;
+
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const newLane = e.lane + dir;
+    if (newLane < 0 || newLane >= LANE_COUNT) continue;
+
+    // cek space di lane target
+    const safeGap = 60;
+    const hasSpace = !enemies.some(
+      (o) => o.lane === newLane && Math.abs(o.y - e.y) < safeGap
+    );
+    if (!hasSpace) continue;
+
+    // mulai pindah lane
+    e.lane = newLane;
+    e.targetX = Math.round(
+      ROAD_LEFT + LANE_WIDTH * newLane + (LANE_WIDTH - e.w) / 2
+    );
+    e.laneChanging = true;
+    e.laneChangeSpeed = 3;
+    e.tiltDir = dir;
+
+    // set cooldown
+    e.laneChangeCooldown = rand(4000, 8000);
+    e.lastLaneChangeTime = nowMs;
+    lastGlobalLaneChange = nowMs;
+  }
 
   // move fuels & buffs
   for (const f of fuels) f.y += f.speed;
@@ -557,7 +621,9 @@ function draw() {
   for (const b of buffsOnRoad) drawBuffPickup(b.x, b.y, b.w, b.h, b.icon);
 
   // enemies
-  for (const e of enemies) drawCar(e.x, e.y, e.w, e.h, "#3b82f6");
+  for (const e of enemies) {
+    drawCar(e.x, e.y, e.w, e.h, "#3b82f6", e.tilt || 0);
+  }
 
   // player effects/trails
   ctx.save();
