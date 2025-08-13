@@ -141,6 +141,7 @@ let permanentShield = { count: 0 };
 let passiveFuelMultiplier = 1.0;
 let fuelPickupMultiplier = 1.0;
 let distanceScoreMultiplier = 1.0;
+let lastShieldConsumedTime = -Infinity;
 
 // input
 window.addEventListener("keydown", (e) => (keys[e.key] = true));
@@ -406,7 +407,7 @@ function update(dt) {
     fuel = 0;
     running = false;
     showMessage("KEHABISAN BENSIN");
-  restartBtn.style.display = "block";
+    restartBtn.style.display = "block";
   }
 
   // spawns (enemies, fuel, buff pickups)
@@ -570,10 +571,7 @@ function draw() {
   drawCar(player.x, player.y, player.w, player.h, player.color, player.tilt);
   ctx.restore();
 
-  if (
-    isBuffActive("shield") ||
-    permanentShield.count > 0
-  )
+  if (isBuffActive("shield") || permanentShield.count > 0)
     drawShield(player.x, player.y, player.w, player.h, t);
 
   document.getElementById("score").innerText = Math.floor(scoreTotal);
@@ -735,6 +733,7 @@ function restartGame() {
   running = true;
   gameOver = false;
   last = performance.now();
+  lastShieldConsumedTime = -Infinity;
   document.getElementById("message").textContent = "";
   restartBtn.style.display = "none";
   player.x = (W - 36) / 2;
