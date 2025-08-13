@@ -508,7 +508,7 @@ function update(dt) {
       ROAD_LEFT + LANE_WIDTH * newLane + (LANE_WIDTH - e.w) / 2
     );
     e.laneChanging = true;
-    e.laneChangeSpeed = 3;
+    e.laneChangeSpeed = 1.2;
     e.tiltDir = dir;
 
     // set cooldown
