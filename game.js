@@ -15,6 +15,7 @@ const player = {
   y: H - 160,
   color: "#ff3b3b",
   speed: 4,
+  tilt: 0, // derajat miring
 };
 let enemies = [],
   fuels = [],
@@ -367,10 +368,25 @@ function update(dt) {
 
   // input + clamp
   const moveSpeed = player.speed * (isBuffActive("nitro") ? 1.5 : 1);
-  if (keys["ArrowLeft"] || keys["a"] || keys["A"] || keys["touch"] === "left")
+  if (keys["ArrowLeft"] || keys["a"] || keys["A"] || keys["touch"] === "left") {
     player.x -= moveSpeed;
-  if (keys["ArrowRight"] || keys["d"] || keys["D"] || keys["touch"] === "right")
+    player.tilt += (-15 - player.tilt) * 0.2; // smooth ke -15°
+  } else if (
+    keys["ArrowRight"] ||
+    keys["d"] ||
+    keys["D"] ||
+    keys["touch"] === "right"
+  ) {
     player.x += moveSpeed;
+    player.tilt += (15 - player.tilt) * 0.2; // smooth ke +15°
+  } else {
+    player.tilt += (0 - player.tilt) * 0.2; // kembali ke 0°
+  }
+  //   const moveSpeed = player.speed * (isBuffActive("nitro") ? 1.5 : 1);
+  //   if (keys["ArrowLeft"] || keys["a"] || keys["A"] || keys["touch"] === "left")
+  //     player.x -= moveSpeed;
+  //   if (keys["ArrowRight"] || keys["d"] || keys["D"] || keys["touch"] === "right")
+  //     player.x += moveSpeed;
   if (player.x < PLAYER_MIN_X) player.x = PLAYER_MIN_X;
   if (player.x > PLAYER_MAX_X) player.x = PLAYER_MAX_X;
 
@@ -550,7 +566,7 @@ function draw() {
   }
   if (isBuffActive("nitro"))
     drawMotionTrail(player.x, player.y, player.w, player.h, t);
-  drawCar(player.x, player.y, player.w, player.h, player.color);
+  drawCar(player.x, player.y, player.w, player.h, player.color, player.tilt);
   ctx.restore();
 
   if (
@@ -582,17 +598,35 @@ function drawShield(x, y, w, h, t) {
   ctx.restore();
 }
 
-function drawCar(x, y, w, h, color) {
+function drawCar(x, y, w, h, color, tilt = 0) {
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.rotate((tilt * Math.PI) / 180);
+  ctx.translate(-w / 2, -h / 2);
+
   ctx.fillStyle = "#000";
-  ctx.fillRect(x + 2, y + 2, w, h);
+  ctx.fillRect(2, 2, w, h);
   ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h - 10);
+  ctx.fillRect(0, 0, w, h - 10);
   ctx.fillStyle = "rgba(255,255,255,0.6)";
-  ctx.fillRect(x + 6, y + 8, w - 12, 12);
+  ctx.fillRect(6, 8, w - 12, 12);
   ctx.fillStyle = "#111";
-  ctx.fillRect(x + 4, y + h - 8, 8, 6);
-  ctx.fillRect(x + w - 12, y + h - 8, 8, 6);
+  ctx.fillRect(4, h - 8, 8, 6);
+  ctx.fillRect(w - 12, h - 8, 8, 6);
+
+  ctx.restore();
 }
+// function drawCar(x, y, w, h, color) {
+//   ctx.fillStyle = "#000";
+//   ctx.fillRect(x + 2, y + 2, w, h);
+//   ctx.fillStyle = color;
+//   ctx.fillRect(x, y, w, h - 10);
+//   ctx.fillStyle = "rgba(255,255,255,0.6)";
+//   ctx.fillRect(x + 6, y + 8, w - 12, 12);
+//   ctx.fillStyle = "#111";
+//   ctx.fillRect(x + 4, y + h - 8, 8, 6);
+//   ctx.fillRect(x + w - 12, y + h - 8, 8, 6);
+// }
 function drawFuelBox(x, y, w, h) {
   ctx.fillStyle = "#b58300";
   ctx.fillRect(x, y, w, h);
@@ -630,6 +664,7 @@ function drawStars(x, y, w, h, t) {
 function drawGhostTint() {
   ctx.globalAlpha = 0.45;
 }
+
 // messages & start/reset
 function showMessage(txt) {
   document.getElementById("message").textContent = txt;
@@ -665,22 +700,19 @@ window.addEventListener("click", () => {
     showPassiveChoices();
     return;
   }
-//   startGame();
+  //   startGame();
 });
 
-
-const restartBtn = document.getElementById('restartBtn');
+const restartBtn = document.getElementById("restartBtn");
 
 function showGameOver() {
   gameOver = true;
   running = false;
-  document.getElementById('message').textContent = 'GAME OVER';
-  restartBtn.style.display = 'block';
-
-  
+  document.getElementById("message").textContent = "GAME OVER";
+  restartBtn.style.display = "block";
 }
 
-restartBtn.addEventListener('click', restartGame);
+restartBtn.addEventListener("click", restartGame);
 
 function restartGame() {
   enemies = [];
@@ -703,11 +735,10 @@ function restartGame() {
   running = true;
   gameOver = false;
   last = performance.now();
-  document.getElementById('message').textContent = '';
-  restartBtn.style.display = 'none';
+  document.getElementById("message").textContent = "";
+  restartBtn.style.display = "none";
   player.x = (W - 36) / 2;
 }
-
 
 // show passive choices at initial load
 showPassiveChoices();
