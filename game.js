@@ -272,7 +272,7 @@ function activateTempBuffById(id) {
   if (b.id === "shield") {
     // shield as one-time or stack
     activeBuffs.push({
-      id: "shield_temp",
+      id: "shield",
       expires: null,
       buff: b,
       data: { count: 1 },
@@ -396,7 +396,7 @@ function update(dt) {
   document.getElementById("distance").innerText = Math.floor(distance);
 
   // fuel consumption (2x faster; passive modifies it too)
-  let consumption = 0.02 * 2 * passiveFuelMultiplier; // doubled
+  let consumption = 0.05 * 2 * passiveFuelMultiplier; // doubled
   if (isBuffActive("fuel_saver")) consumption *= 0.5;
   if (isBuffActive("nitro")) consumption *= 1.12;
   fuel -= consumption;
@@ -406,6 +406,7 @@ function update(dt) {
     fuel = 0;
     running = false;
     showMessage("KEHABISAN BENSIN");
+  restartBtn.style.display = "block";
   }
 
   // spawns (enemies, fuel, buff pickups)
@@ -472,7 +473,7 @@ function update(dt) {
       permanentShield.count--;
       enemies.splice(collidedIdxs[0], 1);
     } else {
-      const shieldIdx = activeBuffs.findIndex((b) => b.id === "shield_temp");
+      const shieldIdx = activeBuffs.findIndex((b) => b.id === "shield");
       if (
         shieldIdx >= 0 &&
         activeBuffs[shieldIdx].data.count > 0 &&
@@ -571,7 +572,6 @@ function draw() {
 
   if (
     isBuffActive("shield") ||
-    isBuffActive("shield_temp") ||
     permanentShield.count > 0
   )
     drawShield(player.x, player.y, player.w, player.h, t);
@@ -708,7 +708,7 @@ const restartBtn = document.getElementById("restartBtn");
 function showGameOver() {
   gameOver = true;
   running = false;
-  document.getElementById("message").textContent = "GAME OVER";
+  document.getElementById("message").textContent = "GAME SELESAI";
   restartBtn.style.display = "block";
 }
 
