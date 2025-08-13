@@ -400,7 +400,7 @@ function update(dt) {
   document.getElementById("distance").innerText = Math.floor(distance);
 
   // fuel consumption (2x faster; passive modifies it too)
-  let consumption = 0.05 * 2 * passiveFuelMultiplier; // doubled
+  let consumption = 0.05 * 2 * passiveFuelMultiplier * (dt/16); // doubled
   if (isBuffActive("fuel_saver")) consumption *= 0.5;
   if (isBuffActive("nitro")) consumption *= 1.12;
   fuel -= consumption;
