@@ -371,7 +371,7 @@ function update(dt) {
   if (!running || gameOver) return;
 
   // input + clamp
-  const moveSpeed = player.speed * (isBuffActive("nitro") ? 1.5 : 1);
+  const moveSpeed = player.speed * (isBuffActive("nitro") ? 1.5 : 1) * (dt/16);
   if (keys["ArrowLeft"] || keys["a"] || keys["A"] || keys["touch"] === "left") {
     player.x -= moveSpeed;
     player.tilt += (-15 - player.tilt) * 0.2; // smooth ke -15°
@@ -440,7 +440,7 @@ function update(dt) {
     if (e.laneChanging) {
       if (Math.abs(e.targetX - e.x) > 1) {
         e.tilt = e.tiltDir < 0 ? -15 : 15; // miring saat pindah
-        e.x += Math.sign(e.targetX - e.x) * e.laneChangeSpeed;
+        e.x += Math.sign(e.targetX - e.x) * e.laneChangeSpeed * (dt/16);
       } else {
         console.log("x :" + e.x + "| tagetX :" + e.targetX);
         e.x = e.targetX;
